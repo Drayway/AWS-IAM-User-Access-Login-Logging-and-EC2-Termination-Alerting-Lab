@@ -1,226 +1,208 @@
-Build a security monitoring workflow that detects EC2 termination attempts (even failed ones) and sends an email alert.
+# 🛡️ AWS IAM Login Monitoring & EC2 Termination Detection Lab
 
-This lab uses:
 
-IAM (role-based access)
+## Overview
+This lab demonstrates how to implement AWS identity monitoring and infrastructure incident detection by logging login activity and detecting EC2 termination attempts using native AWS security services.
 
-EC2 (test resource)
+---
 
-CloudTrail (audit logs)
+## Objectives
 
-CloudWatch Logs + Metric Filters (detection)
+- Create IAM users with role-based permissions
+- Monitor AWS console login activity
+- Enable CloudTrail logging
+- Stream logs into CloudWatch
+- Create metric filters for termination attempts
+- Trigger real-time alerts using SNS
 
-CloudWatch Alarm (alert trigger)
+---
 
-SNS Email Notifications (alert delivery)
+## Step 1 — Create IAM Users
 
-✅ Step 1 — Create IAM Users (CloudAdmin + Helpdesk_User)
+1. Go to **IAM → Users**
+2. Create or confirm the following users exist:
+   - CloudAdmin (Administrator access)
+   - Helpdesk_User (Limited access)
 
-Go to IAM → Users
+<img width="1890" height="797" alt="Screenshot 2026-02-15 110244" src="https://github.com/user-attachments/assets/fafe7425-be0c-46cb-80d1-756db1c32a3c" />
 
-Confirm you have:
 
-CloudAdmin (admin privileges)
+---
 
-Helpdesk_User (limited privileges)
+## Step 2 — Log in as Helpdesk_User
 
-📸 Screenshot:
-/screenshots/01-iam-users.png
+1. Use the IAM login URL
+2. Sign in as **Helpdesk_User**
+3. Confirm login in top-right console corner
 
-✅ Step 2 — Sign in as Helpdesk_User
+Screenshot:  
+<img width="1897" height="871" alt="Screenshot 2026-02-15 161437" src="https://github.com/user-attachments/assets/cad6dfb6-9079-46fc-a870-0351026ba723" />
 
-Log in using the IAM user sign-in page
 
-Verify top-right shows Helpdesk_User
 
-📸 Screenshot:
-/screenshots/02-helpdesk-login.png
+---
 
-✅ Step 3 — Launch an EC2 instance (Test Resource)
+## Step 3 — Launch EC2 Instance
 
-Go to EC2 → Instances → Launch instance
+1. Go to **EC2 → Instances → Launch instance**
+2. Name: IAM-Deny-Test
+3. Instance type: t3.micro
+4. Use default network settings
+5. Launch instance
 
-Name example: IAM-Deny-Test
+Screenshot: 
+<img width="1896" height="778" alt="Screenshot 2026-02-15 122434" src="https://github.com/user-attachments/assets/94102204-0fb5-45f9-80ed-5566c186fc4b" />
 
-Select instance type: t3.micro
 
-Keep default VPC/subnet
+---
 
-Launch the instance
+## Step 4 — Attempt Termination (Denied)
 
-📸 Screenshot:
-/screenshots/03-ec2-running.png
+1. While logged in as Helpdesk_User
+2. Select the instance
+3. Click **Instance state → Terminate**
+4. Confirm action
 
-✅ Step 4 — Attempt to terminate instance (Expected: Denied)
+Expected Result: Access Denied error
 
-While logged in as Helpdesk_User
+Screenshot:  
+<img width="1890" height="706" alt="Screenshot 2026-02-15 162052" src="https://github.com/user-attachments/assets/b74ec991-dcc7-4dfc-b615-400ed08ab894" />
 
-Select the EC2 instance
 
-Click Instance state → Terminate
+---
 
-Confirm termination
+## Step 5 — Verify IAM Deny Policy
 
-You should receive an Access Denied style error indicating the user is blocked.
+1. Switch to CloudAdmin
+2. Go to **IAM → Policies**
+3. Open policy attached to Helpdesk_User
 
-📸 Screenshot:
-/screenshots/04-terminate-denied.png
+Policy JSON includes:
 
-✅ Step 5 — Confirm explicit deny policy (CloudAdmin)
+- Allow: ec2:Describe*
+- Deny: ec2:TerminateInstances
 
-Switch to CloudAdmin
+Screenshot:  
+<img width="1878" height="707" alt="Screenshot 2026-02-15 124815" src="https://github.com/user-attachments/assets/98284013-8b58-45a2-9c35-fb840253b644" />
 
-Go to IAM → Policies
 
-Find the policy attached to Helpdesk_User (example: EC2_ReadOnly_NoTerminate)
+---
 
-Confirm the JSON includes:
+## Step 6 — Enable CloudTrail Logging
 
-Allow: ec2:Describe*
+1. Go to **CloudTrail → Trails**
+2. Create trail named: Security-Trail
+3. Enable multi-region logging
+4. Confirm logging is active
 
-Deny: ec2:TerminateInstances
+Screenshot:  
+<img width="1903" height="840" alt="Screenshot 2026-02-15 162942" src="https://github.com/user-attachments/assets/0555dbc7-2ab2-4201-be4a-94c36237e6fc" />
 
-📸 Screenshot:
-/screenshots/05-policy-json.png
 
-✅ Step 6 — Enable CloudTrail Trail Logging
+---
 
-Go to CloudTrail → Trails
+## Step 7 — Verify Event Logging
 
-Confirm trail is created (example: Security-Trail)
+1. Go to **CloudTrail → Event History**
+2. Search: TerminateInstances
+3. Confirm event logged for Helpdesk_User
 
-Confirm status shows Logging
+Screenshot:  
+<img width="1880" height="785" alt="Screenshot 2026-02-15 163259" src="https://github.com/user-attachments/assets/39c1189b-70b8-4eb8-92e3-9dc9d46881e1" />
 
-Confirm an S3 bucket is assigned for logs
 
-📸 Screenshot:
-/screenshots/06-cloudtrail-trail.png
+---
 
-✅ Step 7 — Verify TerminateInstances event appears in Event History
+## Step 8 — Send Logs to CloudWatch
 
-Go to CloudTrail → Event history
+1. Open trail → Edit
+2. Enable CloudWatch Logs
+3. Create/select log group
+4. Assign IAM role
 
-Filter/search for TerminateInstances
+Screenshot:  
+<img width="1907" height="811" alt="Screenshot 2026-02-15 163924" src="https://github.com/user-attachments/assets/4e1bac30-fa65-42a1-ad3b-eaf282de21c8" />
 
-Confirm the event shows:
 
-Event name: TerminateInstances
+---
 
-Username: Helpdesk_User
+## Step 9 — Create Metric Filter
 
-Event source: ec2.amazonaws.com
+Filter pattern:
 
-📸 Screenshot:
-/screenshots/07-cloudtrail-event.png
 
-✅ Step 8 — Send CloudTrail logs to CloudWatch Logs
+Metric settings:
 
-Open CloudTrail trail → Edit
+- Namespace: Security
+- Metric name: TerminateInstances
+- Value: 1
 
-Enable CloudWatch Logs
+Screenshot:  
+<img width="1888" height="827" alt="Screenshot 2026-02-15 164105" src="https://github.com/user-attachments/assets/bb7be8ff-256c-48c7-b55b-d5f6d899a0d2" />
 
-Select / create:
 
-Log group: aws-cloudtrail-logs-<account-id>
+---
 
-IAM Role: CloudTrail_CloudWatchLogs_Role
+## Step 10 — Create Alarm
 
-📸 Screenshot:
-/screenshots/08-cloudwatch-log-group.png
+1. Go to **CloudWatch → Metrics**
+2. Select Security → TerminateInstances
+3. Create alarm
 
-✅ Step 9 — Create a Metric Filter for EC2 Termination Attempts
+Settings:
 
-Go to CloudWatch → Log groups
+- Threshold: > 0
+- Period: 5 minutes
+- Statistic: Sum or Average
 
-Open the CloudTrail log group
+Screenshot:  
+<img width="1855" height="716" alt="Screenshot 2026-02-15 143133" src="https://github.com/user-attachments/assets/1f0f03e6-cc14-451a-aceb-7e6f71bef785" />
 
-Create a Metric filter
 
-Use filter pattern:
+---
 
-{ ($.eventName = "TerminateInstances") }
+## Step 11 — Configure SNS Alerts
 
+1. Create SNS topic
+2. Add email subscription
+3. Confirm email
 
-Metric settings example:
+Screenshot:  
+<img width="1882" height="823" alt="Screenshot 2026-02-15 165109" src="https://github.com/user-attachments/assets/bfc03bde-e6d8-463e-b1cc-e0808884ce9a" />
 
-Filter name: EC2-Terminate-Attempt
 
-Namespace: Security
+---
 
-Metric name: TerminateInstances
+## Step 12 — Test Detection
 
-Value: 1
+1. Attempt termination again
+2. Alarm triggers
+3. SNS email received
 
-📸 Screenshot:
-/screenshots/09-metric-filter.png
+Screenshot:  
+<img width="1107" height="620" alt="Screenshot 2026-02-15 152331" src="https://github.com/user-attachments/assets/8f286e79-8f0d-4852-a912-c65246a62f5a" />
 
-✅ Step 10 — Create CloudWatch Alarm (Trigger Email Alert)
 
-Go to CloudWatch → Metrics
+---
 
-Find namespace: Security
+## Outcome
 
-Select metric: TerminateInstances
+This lab successfully implemented:
 
-Click Create alarm
+- IAM explicit deny controls
+- CloudTrail audit logging
+- CloudWatch log monitoring
+- Metric-based detection
+- Alarm alerting
+- SNS email notifications
 
-Recommended settings:
+---
 
-Threshold: > 0
+## Skills Demonstrated
 
-Period: 5 minutes
-
-Statistic: Sum (preferred) or Average
-
-📸 Screenshot:
-/screenshots/10-alarm-created.png
-
-✅ Step 11 — Create SNS Topic + Email Notification
-
-During alarm creation (Actions step)
-
-Choose Create new topic
-
-Add your email address
-
-Confirm SNS subscription from your inbox
-
-📸 Screenshot:
-/screenshots/11-sns-email.png
-
-✅ Step 12 — Test Alert Trigger (Proof)
-
-Attempt termination again as Helpdesk_User OR use the already logged TerminateInstances event
-
-Confirm the alarm changes to ALARM
-
-Confirm email notification arrives
-
-📸 Screenshot:
-/screenshots/12-alarm-in-alarm.png
-
-✅ Result
-
-This lab successfully:
-
-Prevented unauthorized termination via IAM explicit deny
-
-Logged the attempt via CloudTrail
-
-Streamed logs into CloudWatch Logs
-
-Detected termination attempts via metric filter
-
-Triggered a CloudWatch alarm
-
-Sent email alerts via SNS
-
-🧠 What I learned
-
-IAM explicit deny overrides allow permissions
-
-CloudTrail records both successful and failed API actions
-
-CloudWatch metric filters enable detection engineering using event patterns
-
-Alarms + SNS make real-time security alerting possible
+- AWS IAM
+- CloudTrail
+- CloudWatch Logs
+- Detection Engineering
+- Security Monitoring
+- Incident Alerting
